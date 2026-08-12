@@ -43,10 +43,20 @@ def today_my() -> date:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     store.init()
-    if notify.enabled() and config.PUBLIC_BASE_URL.startswith("https://"):
+
+    # Say plainly why the Confirm/Reject buttons will or will not work. Getting
+    # this wrong is silent otherwise: bookings still arrive, the buttons just
+    # never respond, and there is nothing in the logs to explain it.
+    if not notify.enabled():
+        print("[telegram] DISABLED - set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_IDS")
+    elif not config.PUBLIC_BASE_URL.startswith("https://"):
+        print("[telegram] WEBHOOK NOT REGISTERED")
+        print(f"[telegram]   PUBLIC_BASE_URL is {config.PUBLIC_BASE_URL!r}")
+        print("[telegram]   Telegram only delivers to a public https URL, so the")
+        print("[telegram]   Confirm/Reject buttons will not respond. Set")
+        print("[telegram]   PUBLIC_BASE_URL to your https domain and redeploy.")
+    else:
         await notify.set_webhook(config.PUBLIC_BASE_URL)
-    elif not notify.enabled():
-        print("[telegram] disabled — set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_IDS")
     yield
 
 
@@ -381,11 +391,17 @@ async def calendar_ics(token: str):
 
 @app.get("/health")
 async def health():
+    https = config.PUBLIC_BASE_URL.startswith("https://")
     return {
         "ok": True,
         "telegram": notify.enabled(),
         "calendar_feed": bool(config.CALENDAR_TOKEN),
         "today": today_my().isoformat(),
+        # Deployment diagnostics. Not secret - this is the site's own public
+        # address - and without it a misconfigured PUBLIC_BASE_URL is invisible
+        # from outside the container.
+        "public_base_url": config.PUBLIC_BASE_URL,
+        "buttons_can_work": notify.enabled() and https,
     }
 
 

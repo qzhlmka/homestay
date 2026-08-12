@@ -246,4 +246,7 @@ async def set_webhook(base_url: str):
         payload["secret_token"] = config.TELEGRAM_WEBHOOK_SECRET
     result = await _call("setWebhook", payload)
     if result and result.get("ok"):
-        print(f"[telegram] webhook -> {payload['url']}")
+        print(f"[telegram] webhook registered -> {payload['url']}")
+    else:
+        print(f"[telegram] WEBHOOK REGISTRATION FAILED for {payload['url']}")
+        print("[telegram]   Confirm/Reject will not respond. See the error above.")
