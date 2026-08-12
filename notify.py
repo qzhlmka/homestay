@@ -67,11 +67,14 @@ def booking_message(b: dict, breakdown: list) -> str:
         "",
         "<b>━━ GUEST ━━</b>",
         f"👤 <b>{_e(b['guest_name'])}</b>",
-        f"📱 <a href=\"tel:{_e(b['guest_phone'])}\">{_e(b['guest_phone'])}</a>",
+        # Plain text, not a tel: link. Telegram only accepts http/https/tg:// in
+        # links and rejects the whole message otherwise - and it auto-detects
+        # phone numbers and emails anyway, so these stay tappable.
+        f"📱 {_e(b['guest_phone'])}",
     ]
 
     if b.get("guest_email"):
-        lines.append(f"✉️ <a href=\"mailto:{_e(b['guest_email'])}\">{_e(b['guest_email'])}</a>")
+        lines.append(f"✉️ {_e(b['guest_email'])}")
     if b.get("guest_ic"):
         lines.append(f"🪪 IC / Passport: <code>{_e(b['guest_ic'])}</code>")
     if b.get("guest_city"):
@@ -127,6 +130,9 @@ def booking_keyboard(b: dict) -> dict:
         f"To confirm, kindly pay the {config.CURRENCY}{b['deposit']} deposit. "
         f"Thank you!"
     )
+    # Buttons accept http/https/tg:// only. A tel: button makes Telegram reject
+    # the entire sendMessage with HTTP 400, so there is no Call button - tap the
+    # phone number in the message body instead.
     return {
         "inline_keyboard": [
             [
@@ -135,7 +141,6 @@ def booking_keyboard(b: dict) -> dict:
             ],
             [
                 {"text": "💬 WhatsApp guest", "url": f"https://wa.me/{wa}?text={greeting}"},
-                {"text": "📞 Call", "url": f"tel:{wa_number(b['guest_phone'])}"},
             ],
         ]
     }
@@ -149,14 +154,36 @@ async def send_booking_alert(b: dict, breakdown: list):
     """Fan the request out to everyone in TELEGRAM_CHAT_IDS."""
     text = booking_message(b, breakdown)
     keyboard = booking_keyboard(b)
+
     for chat_id in config.TELEGRAM_CHAT_IDS:
-        await _call("sendMessage", {
+        sent = await _call("sendMessage", {
             "chat_id": chat_id,
             "text": text,
             "parse_mode": "HTML",
             "reply_markup": keyboard,
             "disable_web_page_preview": True,
         })
+        if sent:
+            continue
+
+        # The rich message was refused - bad markup, a URL Telegram dislikes,
+        # a stray character in a guest's name. The booking is already saved, so
+        # the worst outcome would be you never hearing about it. Retry with
+        # nothing that can be rejected: no HTML, no buttons.
+        print(f"[telegram] falling back to plain text for chat {chat_id}")
+        await _call("sendMessage", {
+            "chat_id": chat_id,
+            "text": _plain_text(text) + (
+                "\n\n(Formatting failed, so the Confirm/Reject buttons are "
+                f"missing. Reply to the guest directly on {b['guest_phone']}.)"
+            ),
+            "disable_web_page_preview": True,
+        })
+
+
+def _plain_text(html_text: str) -> str:
+    """Strip tags and unescape, for the no-formatting fallback."""
+    return html.unescape(re.sub(r"<[^>]+>", "", html_text))
 
 
 async def broadcast_decision(b: dict, status: str, decided_by: str):
