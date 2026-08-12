@@ -301,6 +301,60 @@ async def booking_status(reference: str):
 # Telegram webhook
 # --------------------------------------------------------------------------
 
+async def handle_command(message: dict):
+    """Slash commands typed into the family group."""
+    text = (message.get("text") or "").strip()
+    if not text.startswith("/"):
+        return
+
+    chat_id = message.get("chat", {}).get("id")
+    if config.TELEGRAM_CHAT_IDS and str(chat_id) not in config.TELEGRAM_CHAT_IDS:
+        return                                  # not our group, stay quiet
+
+    # In a group Telegram sends "/cancel@seriputrabot SP-1234".
+    parts = text.split()
+    command = parts[0].split("@")[0].lower()
+    argument = parts[1].upper() if len(parts) > 1 else ""
+
+    if command in ("/help", "/start"):
+        await notify.send(chat_id, notify.HELP)
+        return
+
+    if command not in ("/cancel", "/status"):
+        return
+
+    if not argument:
+        await notify.send(
+            chat_id,
+            f"Which booking? Use <code>{command} SP-XXXX</code> — the "
+            f"reference is at the top of the booking message.")
+        return
+
+    booking = store.get_booking(argument)
+    if not booking:
+        await notify.send(chat_id, f"No booking found with reference "
+                                   f"<code>{argument}</code>.")
+        return
+
+    if command == "/status":
+        await notify.send(chat_id, notify.booking_summary(booking))
+        return
+
+    # /cancel
+    if booking["status"] not in ("pending", "confirmed"):
+        await notify.send(
+            chat_id,
+            notify.booking_summary(booking) +
+            f"\n\nAlready {booking['status']} — nothing to cancel.")
+        return
+
+    await notify.send(
+        chat_id,
+        notify.booking_summary(booking) +
+        "\n\n⚠️ Cancel this booking? The dates go back on sale immediately.",
+        notify.command_cancel_keyboard(booking))
+
+
 @app.post("/api/telegram/webhook")
 async def telegram_webhook(
     request: Request,
@@ -311,6 +365,11 @@ async def telegram_webhook(
         raise HTTPException(403, "Bad secret token")
 
     update = await request.json()
+
+    if update.get("message"):
+        await handle_command(update["message"])
+        return {"ok": True}
+
     callback = update.get("callback_query")
     if not callback:
         return {"ok": True}

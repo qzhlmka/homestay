@@ -319,6 +319,54 @@ async def answer_callback(callback_id: str, text: str, alert: bool = False):
     })
 
 
+async def send(chat_id, text: str, keyboard: dict | None = None):
+    """Plain reply into a chat, used by the slash commands."""
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+    if keyboard:
+        payload["reply_markup"] = keyboard
+    await _call("sendMessage", payload)
+
+
+def command_cancel_keyboard(b: dict) -> dict:
+    return {
+        "inline_keyboard": [[
+            {"text": "⚠️ Yes, cancel it", "callback_data": f"cancelyes:{b['id']}"},
+            {"text": "↩️ Keep it", "callback_data": f"keep:{b['id']}"},
+        ]]
+    }
+
+
+def booking_summary(b: dict) -> str:
+    """One-block description of a booking, for command replies."""
+    icon = {"pending": "⏳", "confirmed": "✅",
+            "rejected": "❌", "cancelled": "🚫"}.get(b["status"], "•")
+    return (
+        f"{icon} <b>{_e(b['reference'])}</b> — {_e(b['status'].upper())}\n"
+        f"👤 {_e(b['guest_name'])}\n"
+        f"📱 {_e(b['guest_phone'])}\n"
+        f"📅 {_e(pretty_date(b['check_in']))} → {_e(pretty_date(b['check_out']))}"
+        f"  ({b['nights']} night{'s' if b['nights'] > 1 else ''}, {b['guests']} pax)\n"
+        f"💰 {config.CURRENCY}{b['total']}"
+    )
+
+
+HELP = (
+    "<b>Seri Putra Homestay bot</b>\n\n"
+    "<code>/cancel SP-XXXX</code>\n"
+    "   Cancel a booking and free its dates. Asks you to confirm first.\n\n"
+    "<code>/status SP-XXXX</code>\n"
+    "   Look up a booking by its reference.\n\n"
+    "<code>/help</code>\n"
+    "   This message.\n\n"
+    "New requests arrive here automatically with Confirm and Reject buttons."
+)
+
+
 async def replace_keyboard(chat_id, message_id, keyboard: dict):
     """Swap the buttons on an alert already sitting in the group."""
     await _call("editMessageReplyMarkup", {
@@ -343,6 +391,13 @@ async def set_webhook(base_url: str):
     }
     if config.TELEGRAM_WEBHOOK_SECRET:
         payload["secret_token"] = config.TELEGRAM_WEBHOOK_SECRET
+    # Makes the commands autocomplete when you type "/" in the group.
+    await _call("setMyCommands", {"commands": [
+        {"command": "cancel", "description": "Cancel a booking: /cancel SP-XXXX"},
+        {"command": "status", "description": "Look up a booking: /status SP-XXXX"},
+        {"command": "help", "description": "What this bot can do"},
+    ]})
+
     result = await _call("setWebhook", payload)
     if result and result.get("ok"):
         print(f"[telegram] webhook registered -> {payload['url']}")
