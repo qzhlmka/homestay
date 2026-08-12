@@ -1,0 +1,86 @@
+[
+  {
+    "slug": "living-mirror-lounge",
+    "category": "living",
+    "caption": "Main lounge with feature mirror wall and smart TV",
+    "width": 720,
+    "height": 519
+  },
+  {
+    "slug": "living-wide",
+    "category": "living",
+    "caption": "Open-plan living area looking through to the dining room",
+    "width": 1200,
+    "height": 901
+  },
+  {
+    "slug": "living-tv",
+    "category": "living",
+    "caption": "Smart TV lounge with ceiling fan and air-conditioning",
+    "width": 720,
+    "height": 541
+  },
+  {
+    "slug": "living-classic-sofa",
+    "category": "living",
+    "caption": "Classic carved sofa set in the front sitting room",
+    "width": 720,
+    "height": 540
+  },
+  {
+    "slug": "living-seating-nook",
+    "category": "living",
+    "caption": "Seating nook beside the staircase",
+    "width": 720,
+    "height": 540
+  },
+  {
+    "slug": "dining",
+    "category": "living",
+    "caption": "Dining table for six, with fridge and kitchen access",
+    "width": 1200,
+    "height": 900
+  },
+  {
+    "slug": "bedroom-queen-1",
+    "category": "bedrooms",
+    "caption": "Queen bedroom 1 - upholstered headboard and blackout blinds",
+    "width": 1200,
+    "height": 901
+  },
+  {
+    "slug": "bedroom-queen-2",
+    "category": "bedrooms",
+    "caption": "Queen bedroom 2 - tufted headboard, fresh towels provided",
+    "width": 1200,
+    "height": 897
+  },
+  {
+    "slug": "bedroom-queen-3",
+    "category": "bedrooms",
+    "caption": "Queen bedroom 3 - headboard storage and its own air-cond",
+    "width": 1200,
+    "height": 896
+  },
+  {
+    "slug": "bedroom-single",
+    "category": "bedrooms",
+    "caption": "Single bedroom - ideal for a child or a solo guest",
+    "width": 1200,
+    "height": 900
+  },
+  {
+    "slug": "bathroom-shower",
+    "category": "bathrooms",
+    "caption": "Shower room - rain shower with instant water heater",
+    "width": 720,
+    "height": 796
+  },
+  {
+    "slug": "bathroom-toilet",
+    "category": "bathrooms",
+    "caption": "Second bathroom - toilet with hand bidet",
+    "width": 720,
+    "height": 952
+  }
+]

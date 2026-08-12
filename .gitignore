@@ -1,0 +1,10 @@
+.env
+*.db
+*.db-journal
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# public/images/_original/ is deliberately NOT ignored — those are the
+# untouched photos everything else is derived from, and they are only ~400 KB.
