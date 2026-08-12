@@ -321,7 +321,7 @@ async def telegram_webhook(
         return {"ok": True}
 
     action, booking_id = data.split(":", 1)
-    if action not in ("confirm", "reject"):
+    if action not in ("confirm", "reject", "cancel", "cancelyes", "keep"):
         await notify.answer_callback(callback["id"], "")
         return {"ok": True}
 
@@ -347,6 +347,42 @@ async def telegram_webhook(
         return {"ok": True}
 
     who = callback.get("from", {}).get("first_name", "someone")
+    message = callback.get("message", {})
+    chat_id = message.get("chat", {}).get("id")
+    message_id = message.get("message_id")
+
+    # --- cancelling a booking that was already confirmed -------------------
+    if action in ("cancel", "cancelyes", "keep"):
+        if action == "cancel":
+            # First tap only arms it. Cancelling releases the dates for anyone
+            # else to book, so it should not happen on one stray thumb.
+            await notify.replace_keyboard(
+                chat_id, message_id, notify.confirm_cancel_keyboard(booking))
+            await notify.answer_callback(
+                callback["id"], "Cancel this booking? Tap again to confirm.")
+            return {"ok": True}
+
+        if action == "keep":
+            await notify.replace_keyboard(
+                chat_id, message_id,
+                notify.decision_keyboard(booking, booking["status"]))
+            await notify.answer_callback(callback["id"], "Kept.")
+            return {"ok": True}
+
+        if not store.cancel_booking(booking_id, who):
+            await notify.answer_callback(
+                callback["id"],
+                f"Cannot cancel - already {booking['status']}.", alert=True)
+            return {"ok": True}
+
+        booking["status"] = "cancelled"
+        await notify.replace_keyboard(
+            chat_id, message_id, notify.decision_keyboard(booking, "cancelled"))
+        await notify.answer_callback(callback["id"], "Cancelled - dates released.")
+        await notify.broadcast_decision(booking, "cancelled", who)
+        return {"ok": True}
+
+    # --- the original confirm / reject decision ----------------------------
     status = "confirmed" if action == "confirm" else "rejected"
 
     if not store.set_status(booking_id, status, who):
@@ -358,10 +394,8 @@ async def telegram_webhook(
         return {"ok": True}
 
     booking["status"] = status
-    message = callback.get("message", {})
-    await notify.mark_decided(
-        message.get("chat", {}).get("id"), message.get("message_id"),
-        booking, status)
+    await notify.replace_keyboard(
+        chat_id, message_id, notify.decision_keyboard(booking, status))
     await notify.answer_callback(
         callback["id"],
         "Confirmed — now on the calendar." if status == "confirmed"

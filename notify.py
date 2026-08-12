@@ -173,22 +173,56 @@ def rejection_link(b: dict) -> str:
     ))
 
 
+def cancellation_link(b: dict) -> str:
+    return _wa_link(b, (
+        f"Assalamualaikum {b['guest_name']}, this is {config.HOMESTAY_NAME}. "
+        f"Regarding your booking {b['reference']} for "
+        f"{pretty_date(b['check_in'])} to {pretty_date(b['check_out'])} - "
+    ))
+
+
 def decision_keyboard(b: dict, status: str) -> dict:
     """Replaces Confirm/Reject once a decision is made: a frozen label showing
-    what was decided, and the one action that follows from it."""
+    what was decided, and the actions that follow from it."""
     if status == "confirmed":
-        label = f"✅ Confirmed · {b['reference']}"
-        action = f"💬 Ask guest for {config.CURRENCY}{b['deposit']} deposit"
-        url = deposit_link(b)
-    else:
-        label = f"❌ Rejected · {b['reference']}"
-        action = "💬 Tell guest why"
-        url = rejection_link(b)
+        return {
+            "inline_keyboard": [
+                [{"text": f"✅ Confirmed · {b['reference']}", "callback_data": "noop"}],
+                [{"text": f"💬 Ask guest for {config.CURRENCY}{b['deposit']} deposit",
+                  "url": deposit_link(b)}],
+                # For a guest who cancels, or who never pays the deposit.
+                [{"text": "🗑 Cancel this booking", "callback_data": f"cancel:{b['id']}"}],
+            ]
+        }
+
+    if status == "cancelled":
+        return {
+            "inline_keyboard": [
+                [{"text": f"🚫 Cancelled · {b['reference']}", "callback_data": "noop"}],
+                [{"text": "💬 Message guest", "url": cancellation_link(b)}],
+            ]
+        }
 
     return {
         "inline_keyboard": [
-            [{"text": label, "callback_data": "noop"}],
-            [{"text": action, "url": url}],
+            [{"text": f"❌ Rejected · {b['reference']}", "callback_data": "noop"}],
+            [{"text": "💬 Tell guest why", "url": rejection_link(b)}],
+        ]
+    }
+
+
+def confirm_cancel_keyboard(b: dict) -> dict:
+    """Cancelling frees the dates for anyone else to take, so make it two taps
+    rather than one stray thumb."""
+    return {
+        "inline_keyboard": [
+            [{"text": f"✅ Confirmed · {b['reference']}", "callback_data": "noop"}],
+            [{"text": f"💬 Ask guest for {config.CURRENCY}{b['deposit']} deposit",
+              "url": deposit_link(b)}],
+            [
+                {"text": "⚠️ Yes, cancel it", "callback_data": f"cancelyes:{b['id']}"},
+                {"text": "↩️ Keep it", "callback_data": f"keep:{b['id']}"},
+            ],
         ]
     }
 
@@ -246,6 +280,16 @@ async def broadcast_decision(b: dict, status: str, decided_by: str):
         )
         button = {"text": f"💬 Ask {_e(b['guest_name']).split()[0]} for the deposit",
                   "url": deposit_link(b)}
+    elif status == "cancelled":
+        text = (
+            f"<b>🚫 CANCELLED</b>  <code>{_e(b['reference'])}</code>\n"
+            f"{_e(b['guest_name'])} · {_e(pretty_date(b['check_in']))} → "
+            f"{_e(pretty_date(b['check_out']))}\n"
+            f"Cancelled by {_e(decided_by)}\n\n"
+            f"📆 Dates are free again and it is off the calendar.\n"
+            f"💬 Next: let the guest know."
+        )
+        button = {"text": "💬 Message guest", "url": cancellation_link(b)}
     else:
         text = (
             f"<b>❌ REJECTED</b>  <code>{_e(b['reference'])}</code>\n"
@@ -275,12 +319,12 @@ async def answer_callback(callback_id: str, text: str, alert: bool = False):
     })
 
 
-async def mark_decided(chat_id, message_id, b: dict, status: str):
-    """Swap Confirm/Reject for the decision and its follow-up WhatsApp link."""
+async def replace_keyboard(chat_id, message_id, keyboard: dict):
+    """Swap the buttons on an alert already sitting in the group."""
     await _call("editMessageReplyMarkup", {
         "chat_id": chat_id,
         "message_id": message_id,
-        "reply_markup": decision_keyboard(b, status),
+        "reply_markup": keyboard,
     })
 
 

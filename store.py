@@ -241,6 +241,38 @@ def set_status(booking_id: str, status: str, decided_by: str = "") -> bool:
     return cur.rowcount > 0
 
 
+def cancel_booking(booking_id: str, cancelled_by: str = "") -> bool:
+    """
+    Cancel a pending or confirmed booking, releasing its dates.
+
+    A soft cancel, not a delete: the row stays in the CSV export so you keep
+    the record of who booked and who cancelled it. Because 'cancelled' is not
+    in BLOCKING_STATUSES, the dates free up and it drops off the calendar feed
+    automatically.
+    """
+    with connect() as conn:
+        cur = conn.execute(
+            """
+            UPDATE bookings
+               SET status = 'cancelled', decided_at = ?, decided_by = ?
+             WHERE id = ? AND status IN ('pending', 'confirmed')
+            """,
+            (_now(), cancelled_by, booking_id),
+        )
+    return cur.rowcount > 0
+
+
+def purge_booking(booking_id: str) -> bool:
+    """Delete a row outright. For clearing test data - real cancellations
+    should use cancel_booking so the history survives."""
+    with connect() as conn:
+        cur = conn.execute(
+            "DELETE FROM bookings WHERE id = ? OR reference = ?",
+            (booking_id, booking_id),
+        )
+    return cur.rowcount > 0
+
+
 def confirmed_bookings():
     """Everything the calendar feed should show, newest stays last."""
     with connect() as conn:
