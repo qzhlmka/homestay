@@ -236,6 +236,11 @@ async def set_webhook(base_url: str):
     payload = {
         "url": f"{base_url}/api/telegram/webhook",
         "allowed_updates": ["callback_query", "message"],
+        # Taps made while nothing was listening queue up at Telegram and would
+        # all arrive at once on startup, aimed at bookings that may be long
+        # decided or deleted. Start clean instead. A tap lost during the few
+        # seconds of a restart is harmless - the buttons are still there.
+        "drop_pending_updates": True,
     }
     if config.TELEGRAM_WEBHOOK_SECRET:
         payload["secret_token"] = config.TELEGRAM_WEBHOOK_SECRET
