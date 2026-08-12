@@ -122,16 +122,26 @@ def submitted_at(iso: str) -> str:
 
 
 def booking_keyboard(b: dict) -> dict:
-    """Just the decision. The WhatsApp link appears after you decide, worded
-    for whichever way you went."""
+    """The decision, plus a blank WhatsApp chat for asking questions first.
+
+    No prefilled text here on purpose: before you have decided anything, any
+    wording we could put in would be presumptuous. The worded messages come
+    after the decision, in decision_keyboard().
+    """
     # Buttons accept http/https/tg:// only. A tel: button makes Telegram reject
     # the entire sendMessage with HTTP 400, so there is no Call button - tap the
     # phone number in the message body instead.
     return {
-        "inline_keyboard": [[
-            {"text": "✅ Confirm", "callback_data": f"confirm:{b['id']}"},
-            {"text": "❌ Reject", "callback_data": f"reject:{b['id']}"},
-        ]]
+        "inline_keyboard": [
+            [
+                {"text": "✅ Confirm", "callback_data": f"confirm:{b['id']}"},
+                {"text": "❌ Reject", "callback_data": f"reject:{b['id']}"},
+            ],
+            [
+                {"text": "💬 WhatsApp guest",
+                 "url": f"https://wa.me/{wa_number(b['guest_phone'])}"},
+            ],
+        ]
     }
 
 
