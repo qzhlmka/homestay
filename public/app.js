@@ -38,8 +38,10 @@ const FALLBACK = {
   phone_primary: '+60 11-1241 2110',
   phone_secondary: '+60 12-730 4478',
   whatsapp: '601112412110',
-  instagram: 'https://instagram.com/seriputrahomestay',
-  facebook: 'https://facebook.com/seriputrahomestay',
+  instagram: 'https://www.instagram.com/reel/DLUBPx7ICDl/?hl=en',
+  instagram_label: 'Watch our reel',
+  facebook: 'https://www.facebook.com/watch/?v=24293846236874579',
+  facebook_label: 'Watch our video',
   currency: 'RM',
   base_rate: 250, weekend_rate: 300, holiday_rate: 350,
   deposit: 100, max_guests: 12, min_nights: 1,
@@ -76,6 +78,20 @@ function prettyDate(iso) {
   return `${DOW[(d.getDay() + 6) % 7]}, ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
 }
 function money(n) { return `${CFG.currency}${n}`; }
+
+/* Pull a readable handle out of a profile URL. Post, reel and video URLs have
+   no handle in them, so return '' and let the caller use its own label. */
+const NOT_A_PROFILE = new Set(['reel', 'reels', 'p', 'tv', 'watch', 'video',
+                               'videos', 'posts', 'share', 'story', 'stories']);
+function socialLabel(url, prefix) {
+  try {
+    const parts = new URL(url).pathname.split('/').filter(Boolean);
+    if (!parts.length || NOT_A_PROFILE.has(parts[0].toLowerCase())) return '';
+    return prefix + parts[0];
+  } catch {
+    return '';
+  }
+}
 
 /* Client-side mirror of pricing.py, used only until /api/availability lands
    (and as the whole story when the page is opened without a backend). */
@@ -515,8 +531,9 @@ function applyConfig() {
   $$('[data-check-out-time]').forEach(el => el.textContent = CFG.check_out_time);
 
   $('#igLink').href = CFG.instagram;
-  $('#igHandle').textContent = '@' + CFG.instagram.replace(/\/$/, '').split('/').pop();
+  $('#igHandle').textContent = CFG.instagram_label || socialLabel(CFG.instagram, '@');
   $('#fbLink').href = CFG.facebook;
+  $('#fbHandle').textContent = CFG.facebook_label || socialLabel(CFG.facebook, '');
   $('#callLink').href = 'tel:' + CFG.phone_secondary.replace(/[^\d+]/g, '');
 
   const q = encodeURIComponent(CFG.maps_query);

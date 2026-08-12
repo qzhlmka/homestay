@@ -8,7 +8,11 @@ import os
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# override=True so editing .env actually takes effect. Without it python-dotenv
+# leaves any variable already in the environment alone, and uvicorn --reload
+# keeps the old value alive - you edit .env, the server restarts, and nothing
+# changes. On Railway there is no .env file, so the real env vars still win.
+load_dotenv(override=True)
 
 
 # --------------------------------------------------------------------------
@@ -24,8 +28,17 @@ PHONE_PRIMARY = "+60 11-1241 2110"
 PHONE_SECONDARY = "+60 12-730 4478"
 WHATSAPP_NUMBER = "601112412110"      # digits only, country code, no +
 
-INSTAGRAM_URL = os.getenv("INSTAGRAM_URL", "https://instagram.com/seriputrahomestay")
-FACEBOOK_URL = os.getenv("FACEBOOK_URL", "https://facebook.com/seriputrahomestay")
+INSTAGRAM_URL = os.getenv(
+    "INSTAGRAM_URL", "https://www.instagram.com/reel/DLUBPx7ICDl/?hl=en")
+FACEBOOK_URL = os.getenv(
+    "FACEBOOK_URL", "https://www.facebook.com/watch/?v=24293846236874579")
+
+# What the contact cards actually say. Kept separate from the URLs because a
+# post or reel link has no readable handle in it - deriving one gives you
+# "@reel" or worse. Set these to your @handle and page name once you have the
+# profile links.
+INSTAGRAM_LABEL = os.getenv("INSTAGRAM_LABEL", "Watch our reel")
+FACEBOOK_LABEL = os.getenv("FACEBOOK_LABEL", "Watch our video")
 
 MAX_GUESTS = 12
 CHECK_IN_TIME = "3:00 PM"
