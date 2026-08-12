@@ -7,7 +7,10 @@ booking request to Telegram for manual approval, and publishes the confirmed
 stays as a subscribable .ics calendar feed.
 """
 
+import csv
+import io
 import json
+import os
 import re
 import time
 from collections import defaultdict
@@ -390,9 +393,50 @@ async def calendar_ics(token: str):
     )
 
 
+@app.get("/calendar/{token}/bookings.csv")
+async def export_csv(token: str):
+    """
+    Every booking as a spreadsheet.
+
+    Railway gives no way to browse a volume, so without this the only way to
+    read your own bookings is the Railway CLI. Sits behind the same token as
+    the calendar feed and carries the same warning: it contains guests' phone
+    numbers, emails and IC numbers.
+    """
+    if not config.CALENDAR_TOKEN:
+        raise HTTPException(503, "Export not configured")
+    if token != config.CALENDAR_TOKEN:
+        raise HTTPException(404, "Not found")
+
+    columns = [
+        "reference", "status", "check_in", "check_out", "nights", "guests",
+        "total", "deposit", "guest_name", "guest_phone", "guest_email",
+        "guest_ic", "guest_city", "purpose", "notes", "created_at",
+        "decided_at", "decided_by",
+    ]
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(columns)
+    for booking in store.all_bookings():
+        writer.writerow([booking.get(c, "") for c in columns])
+
+    stamp = today_my().isoformat()
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="seri-putra-bookings-{stamp}.csv"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @app.get("/health")
 async def health():
     https = config.PUBLIC_BASE_URL.startswith("https://")
+    db = os.path.abspath(config.DATABASE_PATH)
     return {
         "ok": True,
         "telegram": notify.enabled(),
@@ -403,6 +447,13 @@ async def health():
         # from outside the container.
         "public_base_url": config.PUBLIC_BASE_URL,
         "buttons_can_work": notify.enabled() and https,
+        # Is the database actually on the mounted volume, or on the container
+        # disk that gets wiped on every redeploy? No way to tell from outside
+        # otherwise - Railway gives no file browser for volumes.
+        "database_path": db,
+        "database_on_volume": db.startswith("/data"),
+        "database_exists": os.path.exists(config.DATABASE_PATH),
+        "bookings": store.stats(),
     }
 
 

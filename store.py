@@ -256,6 +256,25 @@ def confirmed_bookings():
     return [dict(r) for r in rows]
 
 
+def stats() -> dict:
+    """Counts by status, for the health check."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT status, COUNT(*) AS n FROM bookings GROUP BY status"
+        ).fetchall()
+    by_status = {r["status"]: r["n"] for r in rows}
+    return {"total": sum(by_status.values()), **by_status}
+
+
+def all_bookings():
+    """Every booking ever, newest first. Used by the CSV export."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM bookings ORDER BY created_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def add_blackout(start: date, end: date, reason: str = ""):
     with connect() as conn:
         conn.execute(
