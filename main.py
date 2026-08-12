@@ -310,10 +310,20 @@ async def telegram_webhook(
         await notify.answer_callback(callback["id"], "")
         return {"ok": True}
 
-    # Only the family may decide.
-    sender_id = str(callback.get("from", {}).get("id", ""))
-    if config.TELEGRAM_CHAT_IDS and sender_id not in config.TELEGRAM_CHAT_IDS:
+    # Authorise on the *chat* the button was pressed in, not the person who
+    # pressed it. In a DM those are the same number; in a group they are not —
+    # the chat is the group, the sender is a member of it. Checking the chat
+    # works for both, and means group membership is what grants approval.
+    origin_chat = str(callback.get("message", {}).get("chat", {}).get("id", ""))
+    if config.TELEGRAM_CHAT_IDS and origin_chat not in config.TELEGRAM_CHAT_IDS:
         await notify.answer_callback(callback["id"], "Not authorised.", alert=True)
+        return {"ok": True}
+
+    # Optional second gate: restrict approval to named people inside that chat.
+    sender_id = str(callback.get("from", {}).get("id", ""))
+    if config.TELEGRAM_APPROVER_IDS and sender_id not in config.TELEGRAM_APPROVER_IDS:
+        await notify.answer_callback(
+            callback["id"], "Only the owners can confirm a booking.", alert=True)
         return {"ok": True}
 
     booking = store.get_booking(booking_id)

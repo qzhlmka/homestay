@@ -61,10 +61,20 @@ CURRENCY = "RM"
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
-# Everyone who should receive a new-booking alert. Comma separated numeric ids.
-# Get yours by messaging @userinfobot on Telegram.
+# Where booking alerts are delivered. Either a single family group (one
+# negative id like -1001234567890) or several personal chats, comma separated.
+#   group  -> python get_chat_id.py
+#   direct -> message @userinfobot on Telegram
 TELEGRAM_CHAT_IDS = [
     c.strip() for c in os.getenv("TELEGRAM_CHAT_IDS", "").split(",") if c.strip()
+]
+
+# Optional extra lock. Leave empty and anyone in the group above can approve a
+# booking, which is usually what you want for a private family group. Set it to
+# specific personal user ids to restrict approval to just those people even
+# though the whole group can see the request.
+TELEGRAM_APPROVER_IDS = [
+    c.strip() for c in os.getenv("TELEGRAM_APPROVER_IDS", "").split(",") if c.strip()
 ]
 
 # Shared secret Telegram echoes back on every webhook call, so nobody else can

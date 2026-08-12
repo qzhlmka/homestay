@@ -36,18 +36,39 @@ He replies with a token like `8123456789:AAH...`.
 TELEGRAM_BOT_TOKEN=8123456789:AAH...
 ```
 
-### 2. Get the three chat IDs
+### 2. Point it at your family group
 
-You, your dad and your mom each message **@userinfobot**. It replies with a
-numeric Id. Put all three in, comma separated:
+Create a Telegram group with you, your dad and your mom, add the bot to it, and
+send **`/start`** in the group. It has to be a slash command — bots have privacy
+mode on by default and never see ordinary group chatter.
+
+Then:
+
+```bash
+python get_chat_id.py
+```
+
+It prints the group's id. Paste it in — **the minus sign is part of the id**:
 
 ```
-TELEGRAM_CHAT_IDS=123456789,987654321,555444333
+TELEGRAM_CHAT_IDS=-1001234567890
 ```
 
-**Each of you must also send `/start` to your new bot once.** Telegram refuses
-to deliver messages to anyone who has never started a conversation with it. This
-is the single most common reason alerts don't arrive.
+Anyone in that group can tap Confirm or Reject, which is normally what you want.
+To let everyone *see* requests but restrict *approval*, add the personal user
+ids (from **@userinfobot**) of whoever may decide:
+
+```
+TELEGRAM_APPROVER_IDS=123456789,987654321
+```
+
+> If Telegram later upgrades your group to a supergroup the id changes and
+> alerts silently stop. Re-run `get_chat_id.py` and update `.env`.
+
+**Using direct messages instead of a group?** Each of you gets your id from
+@userinfobot, list all three comma separated, and each of you must send `/start`
+to the bot once — Telegram refuses to deliver to anyone who never opened a chat
+with it. That is the most common reason alerts don't arrive.
 
 ### 3. Generate two secrets
 
@@ -123,11 +144,12 @@ entries once you tap Confirm.
 
 1. Guest picks dates and submits. Their nights are held immediately, so nobody
    else can request the same dates.
-2. All three of you get a Telegram message with the guest's full details, the
+2. The family group gets a Telegram message with the guest's full details, the
    per-night price breakdown, and four buttons: **Confirm**, **Reject**,
    **WhatsApp guest**, **Call**.
-3. Whoever taps first wins — the other two get a message saying who handled it.
-   A second tap is rejected rather than silently double-applied.
+3. Whoever taps first wins. The buttons change to show the decision, and a
+   follow-up message names who handled it. A second tap is refused rather than
+   silently double-applied.
 4. **Confirm** → the stay goes on the shared calendar, and you collect the
    deposit over WhatsApp.
    **Reject** → the dates are released back to the calendar straight away.
