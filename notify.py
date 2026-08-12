@@ -122,26 +122,63 @@ def submitted_at(iso: str) -> str:
 
 
 def booking_keyboard(b: dict) -> dict:
-    wa = wa_number(b["guest_phone"])
-    greeting = quote(
-        f"Assalamualaikum {b['guest_name']}, this is {config.HOMESTAY_NAME}. "
-        f"We received your booking {b['reference']} for "
-        f"{pretty_date(b['check_in'])} to {pretty_date(b['check_out'])}. "
-        f"To confirm, kindly pay the {config.CURRENCY}{b['deposit']} deposit. "
-        f"Thank you!"
-    )
+    """Just the decision. The WhatsApp link appears after you decide, worded
+    for whichever way you went."""
     # Buttons accept http/https/tg:// only. A tel: button makes Telegram reject
     # the entire sendMessage with HTTP 400, so there is no Call button - tap the
     # phone number in the message body instead.
     return {
+        "inline_keyboard": [[
+            {"text": "✅ Confirm", "callback_data": f"confirm:{b['id']}"},
+            {"text": "❌ Reject", "callback_data": f"reject:{b['id']}"},
+        ]]
+    }
+
+
+def _wa_link(b: dict, message: str) -> str:
+    return f"https://wa.me/{wa_number(b['guest_phone'])}?text={quote(message)}"
+
+
+def deposit_link(b: dict) -> str:
+    return _wa_link(b, (
+        f"Assalamualaikum {b['guest_name']}, this is {config.HOMESTAY_NAME}. "
+        f"Good news - your booking {b['reference']} for "
+        f"{pretty_date(b['check_in'])} to {pretty_date(b['check_out'])} "
+        f"({b['nights']} night{'s' if b['nights'] > 1 else ''}, "
+        f"{config.CURRENCY}{b['total']} total) is approved.\n\n"
+        f"To lock in your dates, kindly pay the {config.CURRENCY}{b['deposit']} "
+        f"deposit and send us the receipt. The remaining "
+        f"{config.CURRENCY}{b['total'] - b['deposit']} is settled on arrival.\n\n"
+        f"Thank you!"
+    ))
+
+
+def rejection_link(b: dict) -> str:
+    # Deliberately trails off - you finish the sentence with the real reason.
+    return _wa_link(b, (
+        f"Assalamualaikum {b['guest_name']}, this is {config.HOMESTAY_NAME}. "
+        f"Thank you for your booking request {b['reference']} for "
+        f"{pretty_date(b['check_in'])} to {pretty_date(b['check_out'])}.\n\n"
+        f"Unfortunately we are not able to host you on those dates because "
+    ))
+
+
+def decision_keyboard(b: dict, status: str) -> dict:
+    """Replaces Confirm/Reject once a decision is made: a frozen label showing
+    what was decided, and the one action that follows from it."""
+    if status == "confirmed":
+        label = f"✅ Confirmed · {b['reference']}"
+        action = f"💬 Ask guest for {config.CURRENCY}{b['deposit']} deposit"
+        url = deposit_link(b)
+    else:
+        label = f"❌ Rejected · {b['reference']}"
+        action = "💬 Tell guest why"
+        url = rejection_link(b)
+
+    return {
         "inline_keyboard": [
-            [
-                {"text": "✅ Confirm", "callback_data": f"confirm:{b['id']}"},
-                {"text": "❌ Reject", "callback_data": f"reject:{b['id']}"},
-            ],
-            [
-                {"text": "💬 WhatsApp guest", "url": f"https://wa.me/{wa}?text={greeting}"},
-            ],
+            [{"text": label, "callback_data": "noop"}],
+            [{"text": action, "url": url}],
         ]
     }
 
@@ -187,25 +224,35 @@ def _plain_text(html_text: str) -> str:
 
 
 async def broadcast_decision(b: dict, status: str, decided_by: str):
-    """Tell the other family members what was decided, so nobody double-handles."""
-    icon = "✅ CONFIRMED" if status == "confirmed" else "❌ REJECTED"
-    text = (
-        f"<b>{icon}</b>  <code>{_e(b['reference'])}</code>\n"
-        f"{_e(b['guest_name'])} · {_e(pretty_date(b['check_in']))} → "
-        f"{_e(pretty_date(b['check_out']))}\n"
-        f"Handled by {_e(decided_by)}"
-    )
+    """Say what was decided and hand over the one action that follows."""
     if status == "confirmed":
-        text += (
-            f"\n\n📆 Now on the shared calendar."
-            f"\n💰 Collect {config.CURRENCY}{b['deposit']} deposit from "
-            f"{_e(b['guest_phone'])}"
+        text = (
+            f"<b>✅ CONFIRMED</b>  <code>{_e(b['reference'])}</code>\n"
+            f"{_e(b['guest_name'])} · {_e(pretty_date(b['check_in']))} → "
+            f"{_e(pretty_date(b['check_out']))}\n"
+            f"Handled by {_e(decided_by)}\n\n"
+            f"📆 Now on the shared calendar.\n"
+            f"💰 Next: collect the {config.CURRENCY}{b['deposit']} deposit."
         )
+        button = {"text": f"💬 Ask {_e(b['guest_name']).split()[0]} for the deposit",
+                  "url": deposit_link(b)}
+    else:
+        text = (
+            f"<b>❌ REJECTED</b>  <code>{_e(b['reference'])}</code>\n"
+            f"{_e(b['guest_name'])} · {_e(pretty_date(b['check_in']))} → "
+            f"{_e(pretty_date(b['check_out']))}\n"
+            f"Handled by {_e(decided_by)}\n\n"
+            f"📆 Dates released back to the calendar.\n"
+            f"💬 Next: let them know why."
+        )
+        button = {"text": "💬 Message them the reason", "url": rejection_link(b)}
+
     for chat_id in config.TELEGRAM_CHAT_IDS:
         await _call("sendMessage", {
             "chat_id": chat_id,
             "text": text,
             "parse_mode": "HTML",
+            "reply_markup": {"inline_keyboard": [[button]]},
             "disable_web_page_preview": True,
         })
 
@@ -218,14 +265,12 @@ async def answer_callback(callback_id: str, text: str, alert: bool = False):
     })
 
 
-async def strike_through_buttons(chat_id, message_id, status: str):
-    """Replace the Confirm/Reject row once a decision is made."""
-    label = "✅ Confirmed" if status == "confirmed" else "❌ Rejected"
+async def mark_decided(chat_id, message_id, b: dict, status: str):
+    """Swap Confirm/Reject for the decision and its follow-up WhatsApp link."""
     await _call("editMessageReplyMarkup", {
         "chat_id": chat_id,
         "message_id": message_id,
-        "reply_markup": {"inline_keyboard": [[{"text": label,
-                                               "callback_data": "noop"}]]},
+        "reply_markup": decision_keyboard(b, status),
     })
 
 

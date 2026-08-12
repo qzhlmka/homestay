@@ -356,8 +356,9 @@ async def telegram_webhook(
 
     booking["status"] = status
     message = callback.get("message", {})
-    await notify.strike_through_buttons(
-        message.get("chat", {}).get("id"), message.get("message_id"), status)
+    await notify.mark_decided(
+        message.get("chat", {}).get("id"), message.get("message_id"),
+        booking, status)
     await notify.answer_callback(
         callback["id"],
         "Confirmed — now on the calendar." if status == "confirmed"
