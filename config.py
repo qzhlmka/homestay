@@ -105,7 +105,15 @@ CALENDAR_TOKEN = os.getenv("CALENDAR_TOKEN", "")
 
 # Public origin of the deployed site, e.g. https://seriputra.up.railway.app
 # Used to build absolute links in Telegram messages and the calendar feed.
-PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/")
+#
+# A bare domain is accepted and assumed to be https. Railway's own
+# RAILWAY_PUBLIC_DOMAIN is a bare domain, so pasting it here - or setting
+# PUBLIC_BASE_URL=${{RAILWAY_PUBLIC_DOMAIN}} - would otherwise leave the
+# Telegram webhook unregistered and the Confirm/Reject buttons dead.
+_base = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000").strip().rstrip("/")
+if _base and "://" not in _base:
+    _base = "https://" + _base
+PUBLIC_BASE_URL = _base
 
 TIMEZONE = "Asia/Kuala_Lumpur"
 
